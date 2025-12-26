@@ -87,16 +87,29 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]interface{})
 
 	// Block .env files (except whitelisted ones)
 	basename := filepath.Base(filePath)
-	whitelist := []string{".env.sample", ".env.example", ".example", ".env.template"}
+	basenameLower := strings.ToLower(basename)
+
+	// Whitelist for example/template files
+	whitelist := []string{".env.sample", ".env.example", ".env.template", ".example"}
 	isWhitelisted := false
 	for _, w := range whitelist {
-		if strings.HasSuffix(basename, w) {
+		if strings.HasSuffix(basenameLower, w) {
 			isWhitelisted = true
 			break
 		}
 	}
 
-	if !isWhitelisted && (strings.HasPrefix(basename, ".env") && (len(basename) == 4 || basename[4] == '.')) {
+	// Block .env files: those starting with ".env" or ending with ".env"
+	isEnvFile := false
+	if strings.HasPrefix(basenameLower, ".env") && (len(basename) == 4 || basename[4] == '.') {
+		// Matches: .env, .env.local, .env.production, etc.
+		isEnvFile = true
+	} else if strings.HasSuffix(basenameLower, ".env") {
+		// Matches: production.env, local.env, credentials.env, etc.
+		isEnvFile = true
+	}
+
+	if !isWhitelisted && isEnvFile {
 		return ToolResult{}, fmt.Errorf("access denied: cannot read .env files")
 	}
 
