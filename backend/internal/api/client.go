@@ -38,10 +38,24 @@ type IncomingMessage struct {
 	SessionID string `json:"session_id,omitempty"`
 }
 
+type ToolCallMsg struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type ToolResultMsg struct {
+	ToolCallID string `json:"tool_call_id"`
+	Content    string `json:"content"`
+	IsError    bool   `json:"is_error"`
+}
+
 type OutgoingMessage struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Type       string         `json:"type"`
+	Content    string         `json:"content,omitempty"`
+	Error      string         `json:"error,omitempty"`
+	ToolCall   *ToolCallMsg   `json:"tool_call,omitempty"`
+	ToolResult *ToolResultMsg `json:"tool_result,omitempty"`
 }
 
 func (c *Client) readPump() {
@@ -83,13 +97,26 @@ func (c *Client) readPump() {
 				Content: incoming.Content,
 			})
 
-			// Stream response
+			// Get tool definitions
+			toolDefs := c.hub.ToolRegistry().GetOpenAITools()
+
+			// Create tool executor function
+			executor := func(name, argsJSON string) (content string, isError bool) {
+				result, err := c.hub.ToolRegistry().Execute(context.Background(), name, argsJSON)
+				if err != nil {
+					return err.Error(), true
+				}
+				return result.Content, result.IsError
+			}
+
+			// Stream response with tools
 			eventChan := make(chan llm.StreamEvent)
 			ctx := context.Background()
 
-			go c.hub.llmClient.Stream(ctx, messages, eventChan)
+			go c.hub.llmClient.StreamWithTools(ctx, messages, toolDefs, executor, eventChan)
 
 			var assistantContent string
+			var toolCalls []llm.ToolCall
 			for event := range eventChan {
 				switch event.Type {
 				case "chunk":
@@ -97,6 +124,26 @@ func (c *Client) readPump() {
 					c.sendJSON(OutgoingMessage{
 						Type:    "chunk",
 						Content: event.Content,
+					})
+				case "tool_call":
+					if event.ToolCall != nil {
+						toolCalls = append(toolCalls, *event.ToolCall)
+						c.sendJSON(OutgoingMessage{
+							Type: "tool_call",
+							ToolCall: &ToolCallMsg{
+								ID:        event.ToolCall.ID,
+								Name:      event.ToolCall.Name,
+								Arguments: event.ToolCall.Arguments,
+							},
+						})
+					}
+				case "tool_result":
+					c.sendJSON(OutgoingMessage{
+						Type: "tool_result",
+						ToolResult: &ToolResultMsg{
+							Content: event.Content,
+							IsError: event.Error != "",
+						},
 					})
 				case "error":
 					c.sendError(event.Error)
@@ -108,10 +155,11 @@ func (c *Client) readPump() {
 			}
 
 			// Add assistant response to history
-			if assistantContent != "" {
+			if assistantContent != "" || len(toolCalls) > 0 {
 				messages = append(messages, llm.Message{
-					Role:    "assistant",
-					Content: assistantContent,
+					Role:      "assistant",
+					Content:   assistantContent,
+					ToolCalls: toolCalls,
 				})
 			}
 

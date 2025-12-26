@@ -1,12 +1,15 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { Message } from '../hooks/useChat.js';
+import type { Message, ToolCall, ToolResult } from '../hooks/useChat.js';
+import { ToolsPanel } from './ToolsPanel.js';
 
 interface ChatProps {
   messages: Message[];
+  activeToolCalls: ToolCall[];
+  toolResults: Map<string, ToolResult>;
 }
 
-export function Chat({ messages }: ChatProps) {
+export function Chat({ messages, activeToolCalls, toolResults }: ChatProps) {
   if (messages.length === 0) {
     return (
       <Box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1}>
@@ -21,6 +24,9 @@ export function Chat({ messages }: ChatProps) {
       {messages.map((message, index) => (
         <MessageBubble key={index} message={message} />
       ))}
+      {activeToolCalls.length > 0 && (
+        <ToolsPanel toolCalls={activeToolCalls} toolResults={toolResults} />
+      )}
     </Box>
   );
 }
@@ -35,6 +41,11 @@ function MessageBubble({ message }: { message: Message }) {
       </Text>
       <Box paddingLeft={2}>
         <Text wrap="wrap">{message.content}</Text>
+        {message.toolCalls && message.toolCalls.length > 0 && (
+          <Text color="gray" dimColor>
+            Using {message.toolCalls.length} tool(s)...
+          </Text>
+        )}
       </Box>
     </Box>
   );

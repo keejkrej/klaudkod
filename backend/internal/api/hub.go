@@ -1,27 +1,39 @@
 package api
 
 import (
+	"os"
 	"github.com/jack/klaudkod/backend/internal/config"
 	"github.com/jack/klaudkod/backend/internal/llm"
+	"github.com/jack/klaudkod/backend/internal/tools"
 )
 
 type Hub struct {
-	config     *config.Config
-	llmClient  *llm.Client
-	clients    map[*Client]bool
-	broadcast  chan []byte
-	register   chan *Client
-	unregister chan *Client
+	config        *config.Config
+	llmClient     *llm.Client
+	clients       map[*Client]bool
+	broadcast     chan []byte
+	register      chan *Client
+	unregister    chan *Client
+	toolRegistry  *tools.Registry
 }
 
 func NewHub(cfg *config.Config) *Hub {
+	workingDir, _ := os.Getwd()
+	registry := tools.NewRegistry(workingDir, tools.PermissionModeAuto)
+	registry.Register(tools.NewReadFileTool(workingDir))
+	registry.Register(tools.NewWriteFileTool(workingDir))
+	registry.Register(tools.NewGlobTool(workingDir))
+	registry.Register(tools.NewGrepTool(workingDir))
+	registry.Register(tools.NewBashTool(workingDir))
+	
 	return &Hub{
-		config:     cfg,
-		llmClient:  llm.NewClient(cfg),
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
+		config:       cfg,
+		llmClient:    llm.NewClient(cfg),
+		broadcast:    make(chan []byte),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		clients:      make(map[*Client]bool),
+		toolRegistry: registry,
 	}
 }
 
@@ -46,4 +58,8 @@ func (h *Hub) Run() {
 			}
 		}
 	}
+}
+
+func (h *Hub) ToolRegistry() *tools.Registry {
+	return h.toolRegistry
 }
