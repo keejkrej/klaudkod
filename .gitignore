@@ -26,3 +26,6 @@ Thumbs.db
 # Go
 *.test
 *.out
+
+# Test environment (created at test time)
+tests/.test_env/
