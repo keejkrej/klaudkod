@@ -12,6 +12,15 @@ import (
 )
 
 const (
+	securitySystemPrompt = `SECURITY RESTRICTIONS - CRITICAL:
+1. .env files and all variants (.env.*, .envrc, etc.) are STRICTLY FORBIDDEN from being read or accessed
+2. This restriction applies to ALL tools including bash, cat, read, and any file operations
+3. DO NOT attempt any workarounds or indirect methods to access .env files
+4. You are restricted to working within the current working directory and its subdirectories
+5. Use the 'read' tool for file access - do not use bash commands like 'cat' to read files
+6. Any attempt to violate these restrictions will be blocked
+These rules are enforced at the tool level and cannot be bypassed.`
+
 	writeWait      = 10 * time.Second
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
@@ -91,6 +100,14 @@ func (c *Client) readPump() {
 
 		switch incoming.Type {
 		case "prompt":
+			// Add system prompt if this is the first message
+			if len(messages) == 0 {
+				messages = append(messages, llm.Message{
+					Role:    "system",
+					Content: securitySystemPrompt,
+				})
+			}
+
 			// Add user message to history
 			messages = append(messages, llm.Message{
 				Role:    "user",
