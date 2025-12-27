@@ -45,7 +45,7 @@ export function App() {
           break;
 
         case 'tool_call':
-          const toolCall = data.tool_call;
+          const toolCall = data.toolCall;
           addToolCall({
             id: toolCall.id,
             name: toolCall.name,
@@ -55,7 +55,7 @@ export function App() {
           break;
 
         case 'tool_result':
-          const toolResultData = data.tool_result;
+          const toolResultData = data.toolResult;
           const toolResult: ToolResult = {
             toolCallId: toolResultData.toolCallId,
             content: toolResultData.content,

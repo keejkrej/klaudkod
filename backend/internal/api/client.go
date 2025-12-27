@@ -54,17 +54,18 @@ type ToolCallMsg struct {
 }
 
 type ToolResultMsg struct {
-	ToolCallID string `json:"tool_call_id"`
+	ToolCallID string `json:"toolCallId"`
 	Content    string `json:"content"`
-	IsError    bool   `json:"is_error"`
+	IsError    bool   `json:"isError"`
 }
 
 type OutgoingMessage struct {
-	Type       string         `json:"type"`
-	Content    string         `json:"content,omitempty"`
-	Error      string         `json:"error,omitempty"`
-	ToolCall   *ToolCallMsg   `json:"tool_call,omitempty"`
-	ToolResult *ToolResultMsg `json:"tool_result,omitempty"`
+	Type    string         `json:"type"`
+	Content string         `json:"content,omitempty"`
+	Error   string         `json:"error,omitempty"`
+	IsFirst *bool          `json:"isFirst,omitempty"`
+	ToolCall   *ToolCallMsg   `json:"toolCall,omitempty"`
+	ToolResult *ToolResultMsg `json:"toolResult,omitempty"`
 }
 
 func (c *Client) readPump() {
@@ -134,14 +135,20 @@ func (c *Client) readPump() {
 
 			var assistantContent string
 			var toolCalls []llm.ToolCall
+			firstChunk := true
 			for event := range eventChan {
 				switch event.Type {
 				case "chunk":
 					assistantContent += event.Content
+					isFirst := firstChunk
 					c.sendJSON(OutgoingMessage{
 						Type:    "chunk",
 						Content: event.Content,
+						IsFirst: &isFirst,
 					})
+					if firstChunk {
+						firstChunk = false
+					}
 				case "tool_call":
 					if event.ToolCall != nil {
 						toolCalls = append(toolCalls, *event.ToolCall)
